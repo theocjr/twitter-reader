@@ -101,7 +101,7 @@ if __name__ == '__main__':
             except twitter.TwitterServerErrorException as tsee:
                 retry_sleep_sec = 60
                 logging.warning(''.join(['\t', str(tsee), ' Sleeping for ', str(retry_sleep_sec), ' seconds and retrying ...']))
-                time.sleep(sleep_sec)
+                time.sleep(retry_sleep_sec)
                 retry = True
                 continue
             except Exception as e:
