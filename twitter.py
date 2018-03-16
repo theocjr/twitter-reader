@@ -92,12 +92,16 @@ class TwitterReader:
         twitter_error_msg = twitter_error.get('message', '<empty>')
         error_msg = ''.join(['HTTP error message: ', str(response.status), ' - ', response.reason, '. Twitter error message: ', str(twitter_error_code), ' - ', twitter_error_msg, '.'])
         if user_id:
-            if response.status == http.HTTPStatus.NOT_FOUND:        # inexistent user, maybe has got himself out from Twitter
+            if response.status == http.HTTPStatus.NOT_FOUND:            # inexistent user, maybe has got himself out from Twitter
                 raise TwitterUserNotFoundException(''.join(['User id = ', user_id, ' not found. ', error_msg]))
-            if response.status == http.HTTPStatus.FORBIDDEN:        # suspended user
+            if response.status == http.HTTPStatus.FORBIDDEN:            # suspended user
                 raise TwitterUserSuspendedException(''.join(['User id = ', user_id, ' suspended. ', error_msg]))
-            if response.status == http.HTTPStatus.UNAUTHORIZED:     # protected tweets
+            if response.status == http.HTTPStatus.UNAUTHORIZED:         # protected tweet
                 raise ProtectedTweetsException(''.join(['Tweets from user id = ', user_id, ' are protected. ', error_msg]))
+            if response.status == http.HTTPStatus.TOO_MANY_REQUESTS:    # an absent rate limits header can cause that, force sleep
+                self._logger.warning(error_msg + ' Sleeping for 15 minutes ...')
+                time.sleep( 15*60 )     # 15 minutes
+                return
             if (response.status // 100) == 5 :                      # HTTP server error
                 raise TwitterServerErrorException(''.join(['HTTP server error for user id = ', user_id, ' . HTTP status code = ', str(response.status), ' - ', response.reason]))
         raise Exception(error_msg)
