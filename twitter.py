@@ -14,10 +14,10 @@
 #   [9] https://developer.twitter.com/en/docs/tweets/search/api-reference/get-search-tweets
 #   [10] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/intro-to-tweet-json
 #   [11] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/tweet-object
-#   [10] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object
-#   [11] https://developer.twitter.com/en/docs/accounts-and-users/follow-search-get-users/api-reference/get-users-show
-#   [12] https://developer.twitter.com/en/docs/tweets/timelines/guides/working-with-timelines
-#   [13] https://developer.twitter.com/en/docs/tweets/timelines/api-reference/get-statuses-user_timeline
+#   [12] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object
+#   [13] https://developer.twitter.com/en/docs/accounts-and-users/follow-search-get-users/api-reference/get-users-show
+#   [14] https://developer.twitter.com/en/docs/tweets/timelines/guides/working-with-timelines
+#   [15] https://developer.twitter.com/en/docs/tweets/timelines/api-reference/get-statuses-user_timeline
 
 
 import logging
@@ -84,7 +84,9 @@ class TwitterReader:
 
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    def _handle_twitter_response_errors(self, response, data, user_id = None):
+    def _handle_twitter_response_code(self, response, data, user_id = None):
+        if response.status == http.HTTPStatus.OK:
+            return
         twitter_error = json.loads(data, encoding='utf-8').get('errors', [])[0]
         twitter_error_code = twitter_error.get('code', -1)
         twitter_error_msg = twitter_error.get('message', '<empty>')
@@ -112,9 +114,7 @@ class TwitterReader:
         self._connection.request('POST', '/oauth2/token', headers=bearer_token_headers, body=bearer_token_params)
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
-        if response.status != http.HTTPStatus.OK:
-            self._handle_twitter_response_errors(response, data)
-            #raise Exception(''.join(['HTTP status code = ', str(response.status), ' - ', response.reason]))
+        self._handle_twitter_response_code(response, data)
         bearer_token_dict = json.loads(data, encoding='utf-8')
         if ('token_type' not in bearer_token_dict) or (bearer_token_dict['token_type'] != 'bearer'):
             raise Exception(''.join(['Invalid JSON response from Twitter : ', str(bearer_token_dict)]))
@@ -142,13 +142,7 @@ class TwitterReader:
         self._connection.request('GET', '/1.1/statuses/user_timeline.json' + encoded_params, headers=self._request_headers)
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
-        if response.status != http.HTTPStatus.OK:
-            self._handle_twitter_response_errors(response, data)
-            #if response.status == http.HTTPStatus.UNAUTHORIZED:     # protected tweets
-            #    raise ProtectedTweetsException(''.join(['Tweets from user id = ', params['user_id'], ' are protected.']))
-            #if (response.status // 100) == 5 :                      # HTTP server error
-            #    raise TwitterServerErrorException(''.join(['HTTP server error for user id = ', params['user_id'], ' . HTTP status code = ', str(response.status), ' - ', response.reason]))
-            #raise Exception(''.join(['Error in user timeline request for user id = ', params['user_id'], ' . HTTP status code = ', str(response.status), ' - ', response.reason]))
+        self._handle_twitter_response_code(response, data)
         self._api_statuses_show_remaining = int(response.getheader('x-rate-limit-remaining')) or 1  # header can be absent
         self._api_statuses_show_renew_epoch = int(response.getheader('x-rate-limit-reset')) or -1   # header can be absent
         return json.loads(data, encoding='utf-8')
@@ -163,13 +157,6 @@ class TwitterReader:
         if not self._request_headers:
             self._logger.debug('Trying to get application bearer token ...')
             self._get_request_headers()
-            #try:
-            #    self._get_request_headers()
-            #except Exception as e:
-            #    self._logger.error(''.join(['Error getting application bearer token. ', str(e), '. Exiting ...']))
-            #    traceback.print_exc()
-            #    self.cleanup()
-            #    sys.exit(1)
 
     def cleanup(self):
         self._connection.close()
@@ -212,8 +199,7 @@ class TwitterReader:
             self._connection.request('GET', '/1.1/search/tweets.json' + encoded_search_params, headers=self._request_headers)
             response = self._connection.getresponse()
             data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
-            if response.status != http.HTTPStatus.OK:
-                self._handle_twitter_response_errors(response, data)
+            self._handle_twitter_response_code(response, data)
             tweets = json.loads(data, encoding='utf-8')
             self._api_search_tweets_remaining = int(response.getheader('x-rate-limit-remaining')) or 1  # header can be absent
             self._api_search_tweets_renew_epoch = int(response.getheader('x-rate-limit-reset')) or -1   # header can be absent
@@ -244,15 +230,7 @@ class TwitterReader:
         self._connection.request('GET', ''.join(['/1.1/users/show.json?user_id=', user_id]), headers=self._request_headers)
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
-        if response.status != http.HTTPStatus.OK:
-            self._handle_twitter_response_errors(response, data)
-            #if response.status == http.HTTPStatus.NOT_FOUND:        # inexistent user, maybe has got out from Twitter
-            #    raise TwitterUserNotFoundException(''.join(['User id = ', user_id, ' not found.']))
-            #if response.status == http.HTTPStatus.FORBIDDEN:        # suspended user
-            #    raise TwitterUserSuspendedException(''.join(['User id = ', user_id, ' suspended.']))
-            #if (response.status // 100) == 5 :                      # HTTP server error
-            #    raise TwitterServerErrorException(''.join(['HTTP server error for user id = ', user_id, ' . HTTP status code = ', str(response.status), ' - ', response.reason]))
-            #raise Exception(''.join(['Error trying user information request for user id = ', user_id, ' . HTTP status code = ', str(response.status), ' - ', response.reason]))
+        self._handle_twitter_response_code(response, data)
         self._api_users_show_remaining = int(response.getheader('x-rate-limit-remaining')) or 1     # header can be absent
         self._api_users_show_renew_epoch = int(response.getheader('x-rate-limit-reset')) or -1      # header can be absent
         self._logger.debug(''.join(['Remaining \'users/show\' requests = ', str(self._api_users_show_remaining), '.']))
