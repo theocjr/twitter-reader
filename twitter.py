@@ -84,27 +84,27 @@ class TwitterReader:
 
         self._logger = logging.getLogger(self.__class__.__name__)
 
-    def _handle_twitter_response_code(self, response, data, user_id = None):
+    def _handle_twitter_response_code(self, response, data, user_id = ''):
         if response.status == http.HTTPStatus.OK:
             return
         twitter_error = json.loads(data, encoding='utf-8').get('errors', [])[0]
         twitter_error_code = twitter_error.get('code', -1)
         twitter_error_msg = twitter_error.get('message', '<empty>')
         error_msg = ''.join(['HTTP error message: ', str(response.status), ' - ', response.reason, '. Twitter error message: ', str(twitter_error_code), ' - ', twitter_error_msg, '.'])
-        if user_id:
-            if response.status == http.HTTPStatus.NOT_FOUND:            # inexistent user, maybe has got himself out from Twitter
-                raise TwitterUserNotFoundException(''.join(['User id = ', user_id, ' not found. ', error_msg]))
-            if response.status == http.HTTPStatus.FORBIDDEN:            # suspended user
-                raise TwitterUserSuspendedException(''.join(['User id = ', user_id, ' suspended. ', error_msg]))
-            if response.status == http.HTTPStatus.UNAUTHORIZED:         # protected tweet
-                raise ProtectedTweetsException(''.join(['Tweets from user id = ', user_id, ' are protected. ', error_msg]))
-            if response.status == http.HTTPStatus.TOO_MANY_REQUESTS:    # an absent rate limits header can cause that, force sleep
-                self._logger.warning(error_msg + ' Sleeping for 15 minutes ...')
-                time.sleep( 15*60 )     # 15 minutes
-                return
-            if (response.status // 100) == 5 :                      # HTTP server error
-                raise TwitterServerErrorException(''.join(['HTTP server error for user id = ', user_id, ' . HTTP status code = ', str(response.status), ' - ', response.reason]))
-        raise Exception(error_msg)
+        if response.status == http.HTTPStatus.NOT_FOUND:            # inexistent user, maybe has got himself out from Twitter
+            raise TwitterUserNotFoundException(''.join(['User id = ', user_id, ' not found. ', error_msg]))
+        elif response.status == http.HTTPStatus.FORBIDDEN:          # suspended user
+            raise TwitterUserSuspendedException(''.join(['User id = ', user_id, ' suspended. ', error_msg]))
+        elif response.status == http.HTTPStatus.UNAUTHORIZED:       # protected tweet
+            raise ProtectedTweetsException(''.join(['Tweets from user id = ', user_id, ' are protected. ', error_msg]))
+        elif response.status == http.HTTPStatus.TOO_MANY_REQUESTS:  # an absent rate limits header can cause that, force sleep
+            self._logger.warning(error_msg + ' Sleeping for 15 minutes ...')
+            time.sleep( 15*60 )     # 15 minutes
+            return
+        elif (response.status // 100) == 5 :                        # HTTP server error
+            raise TwitterServerErrorException('HTTP server error. ' + error_msg)
+        else:
+            raise Exception(error_msg)
 
     def _get_request_headers(self):
         consumer_cred_base64 = base64.b64encode(bytes(self._consumer_key + ':' + self._consumer_secret, 'ascii'))
@@ -146,7 +146,7 @@ class TwitterReader:
         self._connection.request('GET', '/1.1/statuses/user_timeline.json' + encoded_params, headers=self._request_headers)
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
-        self._handle_twitter_response_code(response, data)
+        self._handle_twitter_response_code(response, data, params['user_id'])
         self._api_statuses_show_remaining = int(response.getheader('x-rate-limit-remaining', default='1'))  # header can be absent
         self._api_statuses_show_renew_epoch = int(response.getheader('x-rate-limit-reset', default='-1'))   # header can be absent
         return json.loads(data, encoding='utf-8')
@@ -234,7 +234,7 @@ class TwitterReader:
         self._connection.request('GET', ''.join(['/1.1/users/show.json?user_id=', user_id]), headers=self._request_headers)
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
-        self._handle_twitter_response_code(response, data)
+        self._handle_twitter_response_code(response, data, user_id)
         self._api_users_show_remaining = int(response.getheader('x-rate-limit-remaining', default='1'))     # header can be absent
         self._api_users_show_renew_epoch = int(response.getheader('x-rate-limit-reset', default='-1'))      # header can be absent
         self._logger.debug(''.join(['Remaining \'users/show\' requests = ', str(self._api_users_show_remaining), '.']))
