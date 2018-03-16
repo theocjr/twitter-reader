@@ -147,8 +147,8 @@ class TwitterReader:
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
         self._handle_twitter_response_code(response, data)
-        self._api_statuses_show_remaining = int(response.getheader('x-rate-limit-remaining')) or 1  # header can be absent
-        self._api_statuses_show_renew_epoch = int(response.getheader('x-rate-limit-reset')) or -1   # header can be absent
+        self._api_statuses_show_remaining = int(response.getheader('x-rate-limit-remaining', default='1'))  # header can be absent
+        self._api_statuses_show_renew_epoch = int(response.getheader('x-rate-limit-reset', default='-1'))   # header can be absent
         return json.loads(data, encoding='utf-8')
 
 
@@ -205,8 +205,8 @@ class TwitterReader:
             data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
             self._handle_twitter_response_code(response, data)
             tweets = json.loads(data, encoding='utf-8')
-            self._api_search_tweets_remaining = int(response.getheader('x-rate-limit-remaining')) or 1  # header can be absent
-            self._api_search_tweets_renew_epoch = int(response.getheader('x-rate-limit-reset')) or -1   # header can be absent
+            self._api_search_tweets_remaining = int(response.getheader('x-rate-limit-remaining', default='1'))  # header can be absent
+            self._api_search_tweets_renew_epoch = int(response.getheader('x-rate-limit-reset', default='-1'))   # header can be absent
 
             # find users
             for tweet in tweets['statuses']:
@@ -235,8 +235,8 @@ class TwitterReader:
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
         self._handle_twitter_response_code(response, data)
-        self._api_users_show_remaining = int(response.getheader('x-rate-limit-remaining')) or 1     # header can be absent
-        self._api_users_show_renew_epoch = int(response.getheader('x-rate-limit-reset')) or -1      # header can be absent
+        self._api_users_show_remaining = int(response.getheader('x-rate-limit-remaining', default='1'))     # header can be absent
+        self._api_users_show_renew_epoch = int(response.getheader('x-rate-limit-reset', default='-1'))      # header can be absent
         self._logger.debug(''.join(['Remaining \'users/show\' requests = ', str(self._api_users_show_remaining), '.']))
         return json.loads(data, encoding='utf-8')
 
