@@ -116,7 +116,7 @@ if __name__ == '__main__':
                 retry = True
                 continue
             except Exception as e:
-                logging.error(''.join(['Error trying to search users by word ', word, ' . Error: ', str(e), '. Aborting the search for the word \'', word , '\' ...']))
+                logging.error(''.join(['Error trying to search users by word ', word, ' . Error: ', str(e), ' Aborting the search for the word \'', word , '\' ...']))
                 traceback.print_exc()
                 if args.stop_on_error:
                     logging.error('Exiting on error ...')
