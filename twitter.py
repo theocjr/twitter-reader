@@ -75,12 +75,9 @@ class TwitterReader:
         self._consumer_secret = consumer_secret
         self._debug_connection = debug_connection
 
-        self._api_search_tweets_remaining    = 1
-        self._api_search_tweets_renew_epoch  = -1
-        self._api_users_show_remaining       = 1
-        self._api_users_show_renew_epoch     = -1
-        self._api_statuses_show_remaining    = 1
-        self._api_statuses_show_renew_epoch  = -1
+        self._api_search_tweets_remaining    = 1        # value of one to allow the first request, after then the value is updated from Twitter
+        self._api_users_show_remaining       = 1        # value of one to allow the first request, after then the value is updated from Twitter
+        self._api_statuses_show_remaining    = 1        # value of one to allow the first request, after then the value is updated from Twitter
 
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -97,10 +94,6 @@ class TwitterReader:
             raise TwitterUserSuspendedException(''.join(['User id = ', user_id, ' suspended. ', error_msg]))
         elif response.status == http.HTTPStatus.UNAUTHORIZED:       # protected tweet
             raise ProtectedTweetsException(''.join(['Tweets from user id = ', user_id, ' are protected. ', error_msg]))
-        elif response.status == http.HTTPStatus.TOO_MANY_REQUESTS:  # an absent rate limits header can cause that, force sleep
-            self._logger.warning(error_msg + ' Sleeping for 15 minutes ...')
-            time.sleep( 15*60 )     # 15 minutes
-            return
         elif (response.status // 100) == 5 :                        # HTTP server error
             raise TwitterServerErrorException('HTTP server error. ' + error_msg)
         else:
@@ -130,15 +123,15 @@ class TwitterReader:
                                 }
 
     def _check_limit_remaining(self, remaining, renew_epoch):
-        if (not remaining) or (not renew_epoch):    # return in case of one or more absent headers
-            self._logger.warning('One of the rate limits headers absent. Aborting limit checking ...')
-            return
-        if remaining <= 0:
+        if remaining == 0:
             sleep_sec = (renew_epoch + 1) - time.time() # (renew_epoch + 1) => avoiding synchonization problems
             if sleep_sec > 0:
                 self._logger.debug(''.join(['Request limits reached. Sleeping for ', str(sleep_sec), ' seconds ...']))
                 time.sleep(sleep_sec)
                 self.reconnect()    # better to force a restart since not always the network honor the timeout configuration
+        elif remaining == -1:   # Twitter didn't send the rate limits headers, sleeping for 15 minutes
+            self._logger.warning('Absent rate limits headers. Sleeping for 15 minutes ...')
+            time.sleep( 15*60 )
 
     def _request_tweets(self, params):
         self._check_limit_remaining(self._api_statuses_show_remaining, self._api_statuses_show_renew_epoch)
@@ -147,7 +140,7 @@ class TwitterReader:
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
         self._handle_twitter_response_code(response, data, params['user_id'])
-        self._api_statuses_show_remaining = int(response.getheader('x-rate-limit-remaining', default='1'))  # header can be absent
+        self._api_statuses_show_remaining = int(response.getheader('x-rate-limit-remaining', default='-1')) # header can be absent
         self._api_statuses_show_renew_epoch = int(response.getheader('x-rate-limit-reset', default='-1'))   # header can be absent
         return json.loads(data, encoding='utf-8')
 
@@ -205,7 +198,7 @@ class TwitterReader:
             data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
             self._handle_twitter_response_code(response, data)
             tweets = json.loads(data, encoding='utf-8')
-            self._api_search_tweets_remaining = int(response.getheader('x-rate-limit-remaining', default='1'))  # header can be absent
+            self._api_search_tweets_remaining = int(response.getheader('x-rate-limit-remaining', default='-1')) # header can be absent
             self._api_search_tweets_renew_epoch = int(response.getheader('x-rate-limit-reset', default='-1'))   # header can be absent
 
             # find users
@@ -235,7 +228,7 @@ class TwitterReader:
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
         self._handle_twitter_response_code(response, data, user_id)
-        self._api_users_show_remaining = int(response.getheader('x-rate-limit-remaining', default='1'))     # header can be absent
+        self._api_users_show_remaining = int(response.getheader('x-rate-limit-remaining', default='-1'))    # header can be absent
         self._api_users_show_renew_epoch = int(response.getheader('x-rate-limit-reset', default='-1'))      # header can be absent
         self._logger.debug(''.join(['Remaining \'users/show\' requests = ', str(self._api_users_show_remaining), '.']))
         return json.loads(data, encoding='utf-8')
