@@ -92,10 +92,12 @@ class TwitterReader:
     def _handle_twitter_response_code(self, response, data, user_id = ''):
         if response.status == http.HTTPStatus.OK:
             return
-        twitter_error = json.loads(data, encoding='utf-8').get('errors', [])[0]
-        twitter_error_code = twitter_error.get('code', -1)
-        twitter_error_msg = twitter_error.get('message', '<empty>')
-        error_msg = ''.join(['HTTP error message: ', str(response.status), ' - ', response.reason, '. Twitter error message: ', str(twitter_error_code), ' - ', twitter_error_msg, '.'])
+        try:
+            twitter_error = json.loads(data, encoding='utf-8')['errors'][0]
+            twitter_error_msg = ''.join(['Twitter error message: ', str(twitter_error['code']), ' - ', twitter_error['message'], '.'])
+        except Exception as e:
+            twitter_error_msg = '(empty or invalid Twitter error message)'
+        error_msg = ''.join(['HTTP error message: ', str(response.status), ' - ', response.reason, '. ', twitter_error_msg])
         if response.status == http.HTTPStatus.NOT_FOUND:            # inexistent user, maybe has got himself out from Twitter
             raise TwitterUserNotFoundException(''.join(['User id = ', user_id, ' not found. ', error_msg]))
         elif response.status == http.HTTPStatus.FORBIDDEN:          # suspended user
