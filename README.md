@@ -1,2 +1,2 @@
 # twitter-reader
-Code for reading Twitter information through application-only authentication
+Code for reading Twitter massive data through the simpler application-only authentication.
