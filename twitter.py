@@ -123,15 +123,16 @@ class TwitterReader:
                                 }
 
     def _check_limit_remaining(self, remaining, renew_epoch):
-        if remaining == 0:
-            sleep_sec = (renew_epoch + 1) - time.time() # (renew_epoch + 1) => avoiding synchonization problems
-            if sleep_sec > 0:
+        if remaining <= 0:
+            if remaining == 0:
+                sleep_sec = (renew_epoch + 1) - time.time() # (renew_epoch + 1) => avoiding synchonization problems
+                sleep_sec = 0 if sleep_sec < 0 else sleep_sec
                 self._logger.debug(''.join(['Request limits reached. Sleeping for ', str(sleep_sec), ' seconds ...']))
-                time.sleep(sleep_sec)
-                self.reconnect()    # better to force a restart since not always the network honor the timeout configuration
-        elif remaining == -1:   # Twitter didn't send the rate limits headers, sleeping for 15 minutes
-            self._logger.warning('Absent rate limits headers. Sleeping for 15 minutes ...')
-            time.sleep( 15*60 )
+            elif remaining == -1:   # Twitter didn't send the rate limits headers, sleeping for 15 minutes
+                sleep_sec = 15 * 60     # 15 minutes
+                self._logger.warning('Absent rate limits headers. Sleeping for 15 minutes ...')
+            time.sleep(sleep_sec)
+            self.reconnect()    # better to force a restart since not always the network honor the timeout configuration
 
     def _request_tweets(self, params):
         self._check_limit_remaining(self._api_statuses_show_remaining, self._api_statuses_show_renew_epoch)
