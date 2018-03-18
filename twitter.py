@@ -139,6 +139,7 @@ class TwitterReader:
                 sleep_sec = 0 if sleep_sec < 0 else sleep_sec
                 self._logger.debug(''.join(['Request limits reached. Sleeping for ', str(sleep_sec), ' seconds ...']))
             elif self._limits[resource]['remaining'] == -1:   # Twitter didn't send the rate limits headers, sleeping for 15 minutes
+                # TODO instead of sleeping, try to request the limits again
                 sleep_sec = 15 * 60     # 15 minutes
                 self._logger.warning('Absent rate limits headers. Sleeping for 15 minutes ...')
             time.sleep(sleep_sec)
