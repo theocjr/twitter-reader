@@ -94,7 +94,7 @@ class TwitterReader:
             return
         try:
             twitter_error = json.loads(data, encoding='utf-8')['errors'][0]
-            twitter_error_msg = ''.join(['Twitter error message: ', str(twitter_error['code']), ' - ', twitter_error['message'], '.'])
+            twitter_error_msg = ''.join(['Twitter error message: ', str(twitter_error['code']), ' - ', twitter_error['message']])
         except Exception as e:
             twitter_error_msg = '(empty or invalid Twitter error message)'
         error_msg = ''.join(['HTTP error message: ', str(response.status), ' - ', response.reason, '. ', twitter_error_msg])

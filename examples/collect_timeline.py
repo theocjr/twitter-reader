@@ -106,7 +106,7 @@ if __name__ == '__main__':
                 retry = True
                 continue
             except Exception as e:
-                logging.error(''.join(['\tError retrieving data for user ', user_screen_name, ' , id = ', user_id, '. Error message: ', str(e), '. Aborting user timeline ...']))
+                logging.error(''.join(['\tError retrieving data for user ', user_screen_name, ' , id = ', user_id, '. Error message: ', str(e), ' Aborting user timeline ...']))
                 traceback.print_exc()
                 if args.stop_on_error:
                     logging.error('Exiting on error ...')
