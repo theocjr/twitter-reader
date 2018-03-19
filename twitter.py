@@ -61,19 +61,19 @@ class TwitterReader:
     _consumer_key                   = None
     _consumer_secret                = None
 
-    _limits = {                                                 # dictionary containing resources rate limits information
-                'search/tweets' : {                             # resource
-                                    'remaining'     : None,     # how many requests are left for the resource
-                                    'renew_epoch'   : None,     # next epoch to renew the window for the resource
+    _limits = {                                                             # dictionary containing resources rate limits information
+                '/search/tweets'             : {                            # resource
+                                                'remaining'     : None,     # how many requests are left for the resource
+                                                'renew_epoch'   : None,     # next epoch to renew the window for the resource
                                   },
-                'users/show'    : {                             # resource
-                                    'remaining'     : None,     # how many requests are left for the resource
-                                    'renew_epoch'   : None,     # next epoch to renew the window for the resource
+                '/users/show'                : {                            # resource
+                                                'remaining'     : None,     # how many requests are left for the resource
+                                                'renew_epoch'   : None,     # next epoch to renew the window for the resource
                                   },
-                'statuses/show' : {                             # resource
-                                    'remaining'     : None,     # how many requests are left for the resource
-                                    'renew_epoch'   : None,     # next epoch to renew the window for the resource
-                                  },
+                '/statuses/user_timeline'    : {                            # resource
+                                                'remaining'     : None,     # how many requests are left for the resource
+                                                'renew_epoch'   : None,     # next epoch to renew the window for the resource
+                                              },
               }
 
     _logger                         = None
@@ -84,9 +84,9 @@ class TwitterReader:
         self._consumer_secret = consumer_secret
         self._debug_connection = debug_connection
 
-        self._limits['search/tweets']['remaining'] = 1  # value of one to allow the first request, after then the value is updated from Twitter headers
-        self._limits['users/show']['remaining'] = 1     # value of one to allow the first request, after then the value is updated from Twitter headers
-        self._limits['statuses/show']['remaining'] = 1  # value of one to allow the first request, after then the value is updated from Twitter headers
+        self._limits['/search/tweets']['remaining'] = 1          # value of one to allow the first request, after then the value is updated from Twitter headers
+        self._limits['/users/show']['remaining'] = 1             # value of one to allow the first request, after then the value is updated from Twitter headers
+        self._limits['/statuses/user_timeline']['remaining'] = 1 # value of one to allow the first request, after then the value is updated from Twitter headers
 
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -134,20 +134,21 @@ class TwitterReader:
                                 }
 
     def _get_rate_limit_status(self, resource):
-        family = resource.split('/')[0]
+        family = resource.split('/')[1]
         params = { 'resources' : family }
         encoded_params = '?%s' % urllib.parse.urlencode(params)
         retry = True
         while retry:
-            self._logger.debug(''.join(['Requesting rate limits for resource family ', family , ' ...']))
+            self._logger.debug(''.join(['Absent rate limit headers. Requesting rate limits for resource family ', family , ' ...']))
             self._connection.request('GET', '/1.1/application/rate_limit_status.json' + encoded_params, headers=self._request_headers)
             response = self._connection.getresponse()
             data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+            response_key = resource + '/:id' if resource == '/users/show' else resource
             try:
                 self._handle_twitter_response_code(response, data)
                 limits = json.loads(data, encoding='utf-8')
-                self._limits[resource]['remaining'] = limits['resources'][family][resource]['remaining']
-                self._limits[resource]['renew_epoch'] = limits['resources'][family][resource]['reset']
+                self._limits[resource]['remaining'] = limits['resources'][family][response_key]['remaining']
+                self._limits[resource]['renew_epoch'] = limits['resources'][family][response_key]['reset']
                 retry = False
             except Exception as e:
                 self._logger.warning(''.join(['Error requesting rate limits for resource family ', family , ' . Error: ', str(e), ' Sleeping 5 seconds and retrying ...']))
@@ -169,13 +170,13 @@ class TwitterReader:
         self._limits[resource]['renew_epoch'] = int(response.getheader('x-rate-limit-reset', default='-1'))   # header can be absent
 
     def _request_tweets(self, params):
-        self._check_limit_remaining('statuses/show')
+        self._check_limit_remaining('/statuses/user_timeline')
         encoded_params = '?%s' % urllib.parse.urlencode(params)
         self._connection.request('GET', '/1.1/statuses/user_timeline.json' + encoded_params, headers=self._request_headers)
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
         self._handle_twitter_response_code(response, data, params['user_id'])
-        self._update_rate_limit('statuses/show', response)
+        self._update_rate_limit('/statuses/user_timeline', response)
         return json.loads(data, encoding='utf-8')
 
 
@@ -226,13 +227,13 @@ class TwitterReader:
         users = {}
         while acc_results < max_results:
             # get tweets
-            self._check_limit_remaining('search/tweets')
+            self._check_limit_remaining('/search/tweets')
             self._connection.request('GET', '/1.1/search/tweets.json' + encoded_search_params, headers=self._request_headers)
             response = self._connection.getresponse()
             data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
             self._handle_twitter_response_code(response, data)
             tweets = json.loads(data, encoding='utf-8')
-            self._update_rate_limit('search/tweets', response)
+            self._update_rate_limit('/search/tweets', response)
 
             # find users
             for tweet in tweets['statuses']:
@@ -245,7 +246,7 @@ class TwitterReader:
             # account results
             results = len(tweets['statuses'])
             acc_results += results
-            self._logger.debug(''.join(['\tRetrieved ', str(results), ' tweets. Current Number of users found = ',  str(len(users.keys())), '. Remaining search/tweets requests = ', str(self._limits['search/tweets']['remaining']), '.']))
+            self._logger.debug(''.join(['\tRetrieved ', str(results), ' tweets. Current Number of users found = ',  str(len(users.keys())), '. Remaining \'/search/tweets requests\' = ', str(self._limits['/search/tweets']['remaining']), '.']))
 
             # get next results page
             if 'next_results' not in tweets['search_metadata']:     # end of results
@@ -256,13 +257,13 @@ class TwitterReader:
         return users
 
     def get_user_info(self, user_id):
-        self._check_limit_remaining('users/show')
+        self._check_limit_remaining('/users/show')
         self._connection.request('GET', ''.join(['/1.1/users/show.json?user_id=', user_id]), headers=self._request_headers)
         response = self._connection.getresponse()
         data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
         self._handle_twitter_response_code(response, data, user_id)
-        self._update_rate_limit('users/show', response)
-        self._logger.debug(''.join(['Remaining \'users/show\' requests = ', str(self._limits['users/show']['remaining']), '.']))
+        self._update_rate_limit('/users/show', response)
+        self._logger.debug(''.join(['Remaining \'/users/show\' requests = ', str(self._limits['/users/show']['remaining']), '.']))
         return json.loads(data, encoding='utf-8')
 
     #   Download all the tweets in the user timeline according to [13]
@@ -278,7 +279,7 @@ class TwitterReader:
         # first timeline request
         tweets = self._request_tweets(timeline_params)
         retrieved_tweets = len(tweets)
-        self._logger.debug(''.join(['Retrieved ', str(retrieved_tweets), ' tweets in the first request. Remaining \'statuses/show\' requests = ', str(self._limits['statuses/show']['remaining']), '.']))
+        self._logger.debug(''.join(['Retrieved ', str(retrieved_tweets), ' tweets in the first request. Remaining \'/statuses/user_timeline\' requests = ', str(self._limits['/statuses/user_timeline']['remaining']), '.']))
         if retrieved_tweets == 0:    # finish this profile collecting
             return tweets
 
@@ -287,12 +288,12 @@ class TwitterReader:
             timeline_params['max_id'] = tweets[-1]['id'] - 1
             temp = self._request_tweets(timeline_params)
             retrieved_tweets = len(temp)
-            self._logger.debug(''.join(['Retrieved ', str(retrieved_tweets), ' tweets. Remaining \'statuses/show\' requests = ', str(self._limits['statuses/show']['remaining']), '.']))
+            self._logger.debug(''.join(['Retrieved ', str(retrieved_tweets), ' tweets. Remaining \'/statuses/user_timeline\' requests = ', str(self._limits['/statuses/user_timeline']['remaining']), '.']))
             tweets += temp
         del timeline_params['max_id']
 
         # newer tweets since collecting
         timeline_params['since_id'] = tweets[0]['id']
         temp = self._request_tweets(timeline_params)
-        self._logger.debug(''.join(['Retrieved ', str(len(temp)), ' newer tweets since collecting. Remaining \'statuses/show\' requests = ', str(self._limits['statuses/show']['remaining']), '.']))
+        self._logger.debug(''.join(['Retrieved ', str(len(temp)), ' newer tweets since collecting. Remaining \'/statuses/user_timeline\' requests = ', str(self._limits['/statuses/user_timeline']['remaining']), '.']))
         return temp + tweets
