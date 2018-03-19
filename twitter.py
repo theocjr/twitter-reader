@@ -6,18 +6,19 @@
 #   [1] https://developer.twitter.com/en/docs/basics/authentication/overview/application-only
 #   [2] https://developer.twitter.com/en/docs/basics/authentication/api-reference/token
 #   [3] https://developer.twitter.com/en/docs/basics/rate-limiting
-#   [4] https://developer.twitter.com/en/docs/basics/rate-limits.html
-#   [5] https://developer.twitter.com/en/docs/basics/response-codes
-#   [6] https://developer.twitter.com/en/docs/tweets/search/overview
-#   [7] https://developer.twitter.com/en/docs/tweets/search/guides/build-standard-query
-#   [8] https://developer.twitter.com/en/docs/tweets/search/guides/standard-operators
-#   [9] https://developer.twitter.com/en/docs/tweets/search/api-reference/get-search-tweets
-#   [10] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/intro-to-tweet-json
-#   [11] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/tweet-object
-#   [12] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object
-#   [13] https://developer.twitter.com/en/docs/accounts-and-users/follow-search-get-users/api-reference/get-users-show
-#   [14] https://developer.twitter.com/en/docs/tweets/timelines/guides/working-with-timelines
-#   [15] https://developer.twitter.com/en/docs/tweets/timelines/api-reference/get-statuses-user_timeline
+#   [4] https://developer.twitter.com/en/docs/basics/rate-limits
+#   [5] https://developer.twitter.com/en/docs/developer-utilities/rate-limit-status/api-reference/get-application-rate_limit_status
+#   [6] https://developer.twitter.com/en/docs/basics/response-codes
+#   [7] https://developer.twitter.com/en/docs/tweets/search/overview
+#   [8] https://developer.twitter.com/en/docs/tweets/search/guides/build-standard-query
+#   [9] https://developer.twitter.com/en/docs/tweets/search/guides/standard-operators
+#   [10] https://developer.twitter.com/en/docs/tweets/search/api-reference/get-search-tweets
+#   [11] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/intro-to-tweet-json
+#   [12] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/tweet-object
+#   [13] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object
+#   [14] https://developer.twitter.com/en/docs/accounts-and-users/follow-search-get-users/api-reference/get-users-show
+#   [15] https://developer.twitter.com/en/docs/tweets/timelines/guides/working-with-timelines
+#   [16] https://developer.twitter.com/en/docs/tweets/timelines/api-reference/get-statuses-user_timeline
 
 
 import logging
@@ -60,18 +61,18 @@ class TwitterReader:
     _consumer_key                   = None
     _consumer_secret                = None
 
-    _limits = {                                                         # dictionary containing resources rate limits information
-                'search/tweets' : {                                     # resource
-                                    'remaining'             : None,     # how many requests are left for the resource
-                                    'renew_epoch'           : None,     # next epoch to renew the window for the resource
+    _limits = {                                                 # dictionary containing resources rate limits information
+                'search/tweets' : {                             # resource
+                                    'remaining'     : None,     # how many requests are left for the resource
+                                    'renew_epoch'   : None,     # next epoch to renew the window for the resource
                                   },
-                'users/show'    : {                                     # resource
-                                    'remaining'             : None,     # how many requests are left for the resource
-                                    'renew_epoch'           : None,     # next epoch to renew the window for the resource
+                'users/show'    : {                             # resource
+                                    'remaining'     : None,     # how many requests are left for the resource
+                                    'renew_epoch'   : None,     # next epoch to renew the window for the resource
                                   },
-                'statuses/show' : {                                     # resource
-                                    'remaining'             : None,     # how many requests are left for the resource
-                                    'renew_epoch'           : None,     # next epoch to renew the window for the resource
+                'statuses/show' : {                             # resource
+                                    'remaining'     : None,     # how many requests are left for the resource
+                                    'renew_epoch'   : None,     # next epoch to renew the window for the resource
                                   },
               }
 
@@ -83,9 +84,9 @@ class TwitterReader:
         self._consumer_secret = consumer_secret
         self._debug_connection = debug_connection
 
-        self._limits['search/tweets']['remaining'] = 1          # value of one to allow the first request, after then the value is updated from Twitter
-        self._limits['users/show']['remaining'] = 1             # value of one to allow the first request, after then the value is updated from Twitter
-        self._limits['statuses/show']['remaining'] = 1          # value of one to allow the first request, after then the value is updated from Twitter
+        self._limits['search/tweets']['remaining'] = 1  # value of one to allow the first request, after then the value is updated from Twitter headers
+        self._limits['users/show']['remaining'] = 1     # value of one to allow the first request, after then the value is updated from Twitter headers
+        self._limits['statuses/show']['remaining'] = 1  # value of one to allow the first request, after then the value is updated from Twitter headers
 
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -132,18 +133,36 @@ class TwitterReader:
                                   #'Accept-Encoding': 'gzip',     # gives error
                                 }
 
+    def _get_rate_limit_status(self, resource):
+        family = resource.split('/')[0]
+        params = { 'resources' : family }
+        encoded_params = '?%s' % urllib.parse.urlencode(params)
+        retry = True
+        while retry:
+            self._logger.debug(''.join(['Requesting rate limits for resource family ', family , ' ...']))
+            self._connection.request('GET', '/1.1/application/rate_limit_status.json' + encoded_params, headers=self._request_headers)
+            response = self._connection.getresponse()
+            data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+            try:
+                self._handle_twitter_response_code(response, data)
+                limits = json.loads(data, encoding='utf-8')
+                self._limits[resource]['remaining'] = limits['resources'][family][resource]['remaining']
+                self._limits[resource]['renew_epoch'] = limits['resources'][family][resource]['reset']
+                retry = False
+            except Exception as e:
+                self._logger.warning(''.join(['Error requesting rate limits for resource family ', family , ' . Error: ', str(e), ' Sleeping 5 seconds and retrying ...']))
+                time.sleep(5)       # this 'application/rate_limit_status' resource can be queried 180 times in a 15-minutes window (at each 5 seconds)
+
     def _check_limit_remaining(self, resource):
         if self._limits[resource]['remaining'] <= 0:
+            if self._limits[resource]['remaining'] == -1:       # Twitter didn't send the rate limits headers, request these limits
+                self._get_rate_limit_status(resource)
             if self._limits[resource]['remaining'] == 0:
                 sleep_sec = (self._limits[resource]['renew_epoch'] + 1) - time.time() # (renew_epoch + 1) => avoiding synchonization problems
                 sleep_sec = 0 if sleep_sec < 0 else sleep_sec
-                self._logger.debug(''.join(['Request limits reached. Sleeping for ', str(sleep_sec), ' seconds ...']))
-            elif self._limits[resource]['remaining'] == -1:   # Twitter didn't send the rate limits headers, sleeping for 15 minutes
-                # TODO instead of sleeping, try to request the limits again
-                sleep_sec = 15 * 60     # 15 minutes
-                self._logger.warning('Absent rate limits headers. Sleeping for 15 minutes ...')
-            time.sleep(sleep_sec)
-            self.reconnect()    # better to force a restart since the server maybe had dropped the current connection
+                self._logger.debug(''.join(['Requests limit reached. Sleeping for ', str(sleep_sec), ' seconds ...']))
+                time.sleep(sleep_sec)
+                self.reconnect()    # better to force a restart since the server maybe had dropped the current connection
 
     def _update_rate_limit(self, resource, response):
         self._limits[resource]['remaining'] = int(response.getheader('x-rate-limit-remaining', default='-1')) # header can be absent
