@@ -50,7 +50,9 @@ class TwitterServerErrorException(Exception):
 
 class TwitterReader:
 
+
     ##### PRIVATE CLASS MEMBERS #####
+
 
     _endpoint                       = 'api.twitter.com'
     _connection                     = None
@@ -78,6 +80,7 @@ class TwitterReader:
 
     _logger                         = None
 
+
     def __init__(self, app_name, consumer_key, consumer_secret, debug_connection = False):
         self._app_name = app_name
         self._consumer_key = consumer_key
@@ -89,6 +92,7 @@ class TwitterReader:
         self._limits['/statuses/user_timeline']['remaining'] = 1 # value of one to allow the first request, after then the value is updated from Twitter headers
 
         self._logger = logging.getLogger(self.__class__.__name__)
+
 
     def _handle_twitter_response_code(self, response, data, user_id = ''):
         if response.status == http.HTTPStatus.OK:
@@ -109,6 +113,7 @@ class TwitterReader:
             raise TwitterServerErrorException('HTTP server error. ' + error_msg)
         else:
             raise Exception(error_msg)
+
 
     def _get_request_headers(self):
         consumer_cred_base64 = base64.b64encode(bytes(self._consumer_key + ':' + self._consumer_secret, 'ascii'))
@@ -133,6 +138,7 @@ class TwitterReader:
                                   #'Accept-Encoding': 'gzip',     # gives error
                                 }
 
+
     def _get_rate_limit_status(self, resource):
         family = resource.split('/')[1]
         params = { 'resources' : family }
@@ -154,6 +160,7 @@ class TwitterReader:
                 self._logger.warning(''.join(['Error requesting rate limits for resource family ', family , ' . Error: ', str(e), ' Sleeping 5 seconds and retrying ...']))
                 time.sleep(5)       # this 'application/rate_limit_status' resource can be queried 180 times in a 15-minutes window (at each 5 seconds)
 
+
     def _check_limit_remaining(self, resource):
         if self._limits[resource]['remaining'] <= 0:
             if self._limits[resource]['remaining'] == -1:       # Twitter didn't send the rate limits headers, request these limits
@@ -165,9 +172,11 @@ class TwitterReader:
                 time.sleep(sleep_sec)
                 self.reconnect()    # better to force a restart since the server maybe had dropped the current connection
 
+
     def _update_rate_limit(self, resource, response):
         self._limits[resource]['remaining'] = int(response.getheader('x-rate-limit-remaining', default='-1')) # header can be absent
         self._limits[resource]['renew_epoch'] = int(response.getheader('x-rate-limit-reset', default='-1'))   # header can be absent
+
 
     def _request_tweets(self, params):
         self._check_limit_remaining('/statuses/user_timeline')
@@ -182,6 +191,7 @@ class TwitterReader:
 
     ##### PUBLIC CLASS MEMBERS #####
 
+
     def connect(self):
         self._logger.debug(''.join(['Connecting to Twitter endpoint ', self._endpoint, ' ...']))
         self._connection = http.client.HTTPSConnection(self._endpoint)
@@ -190,8 +200,10 @@ class TwitterReader:
             self._logger.debug('Trying to get application bearer token ...')
             self._get_request_headers()
 
+
     def cleanup(self):
         self._connection.close()
+
 
     def reconnect(self):
         self._logger.info(''.join(['Restarting connection to Twitter endpoint ', self._endpoint, ' ...']))
@@ -201,6 +213,7 @@ class TwitterReader:
             self._logger.warning('Error trying to close twitter connection while reconnecting.')
             traceback.print_exc()
         self.connect()
+
 
 # STOPPED
 # Besides using the function words to filter the language of the user, the code
@@ -256,6 +269,7 @@ class TwitterReader:
         self._logger.debug(''.join(['Number of users found for word ', word, ' = ',  str(len(users.keys())), '.']))
         return users
 
+
     def get_user_info(self, user_id):
         self._check_limit_remaining('/users/show')
         self._connection.request('GET', ''.join(['/1.1/users/show.json?user_id=', user_id]), headers=self._request_headers)
@@ -265,6 +279,7 @@ class TwitterReader:
         self._update_rate_limit('/users/show', response)
         self._logger.debug(''.join(['Remaining \'/users/show\' requests = ', str(self._limits['/users/show']['remaining']), '.']))
         return json.loads(data, encoding='utf-8')
+
 
     #   Download all the tweets in the user timeline according to [13]
     def get_user_timeline(self, user_id):
