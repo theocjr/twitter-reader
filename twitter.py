@@ -259,7 +259,7 @@ class TwitterReader:
             # account results
             results = len(tweets['statuses'])
             acc_results += results
-            self._logger.debug(''.join(['\tRetrieved ', str(results), ' tweets. Current Number of users found = ',  str(len(users.keys())), '. Remaining \'/search/tweets requests\' = ', str(self._limits['/search/tweets']['remaining']), '.']))
+            self._logger.debug(''.join(['\tRetrieved ', str(results), ' tweets. Current number of users found = ',  str(len(users.keys())), '. Remaining \'/search/tweets\' requests = ', str(self._limits['/search/tweets']['remaining']), '.']))
 
             # get next results page
             if 'next_results' not in tweets['search_metadata']:     # end of results
