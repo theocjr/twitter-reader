@@ -228,7 +228,7 @@ class TwitterReader:
 #       search most recents tweets using 'word' and recover at most max_results_per_word parameter
 #       for each 'tweet':
 #           save user information if not already seen
-    def search_users(self, word, language, max_results):
+    def search_users(self, word, language = 'en', max_results = 1000):
         search_params = {'q':                   word + ' -filter:retweets',
                          'lang' :               language,
                          'result_type' :        'recent',
