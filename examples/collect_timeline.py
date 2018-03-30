@@ -89,8 +89,8 @@ if __name__ == '__main__':
         user_id, user_screen_name = user.split()
         retry = True
         while retry:
+            logging.debug(''.join(['\tRetrieving user information and timeline from user ', user_screen_name, ' , id = ', user_id, ' ...']))
             try:
-                logging.debug(''.join(['\tRetrieving user information and timeline from user ', user_screen_name, ' , id = ', user_id, ' ...']))
                 user_info = twitter_conn.get_user_info(user_id)
                 tweets = twitter_conn.get_user_timeline(user_id)
             except twitter.TwitterUserNotFoundException as tunfe:
@@ -103,6 +103,7 @@ if __name__ == '__main__':
                 retry_sleep_sec = 60
                 logging.warning(''.join(['\t', str(tsee), ' Sleeping for ', str(retry_sleep_sec), ' seconds and retrying ...']))
                 time.sleep(retry_sleep_sec)
+                twitter_conn.reconnect()
                 retry = True
                 continue
             except Exception as e:
@@ -112,7 +113,12 @@ if __name__ == '__main__':
                     logging.error('Exiting on error ...')
                     twitter_conn.cleanup()
                     sys.exit(1)
+                retry_sleep_sec = 60
+                logging.warning(''.join(['\t', str(tsee), ' Sleeping for ', str(retry_sleep_sec), ' seconds and retrying ...']))
+                time.sleep(retry_sleep_sec)
                 twitter_conn.reconnect()
+                retry = True
+                continue
             retry = False
 
         logging.debug('\tSaving retrieved data ...')
