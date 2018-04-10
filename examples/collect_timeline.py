@@ -27,7 +27,7 @@ import time
 
 def command_line_parsing():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--users-file-name', '-u',
+    parser.add_argument('--users-file-name', '-f',
                         dest='users_file_name',
                         required=True,
                         help='File name with information about the users that will have their timeline collected.')
@@ -35,6 +35,16 @@ def command_line_parsing():
                         dest='destination_dir',
                         required=True,
                         help='Directory name to be created where the collected data will be stored.')
+    parser.add_argument('--max-number-users', '-u',
+                        dest='max_number_users',
+                        type=int,
+                        default=0,
+                        help='Maximum number of users to have their timeline collected. Default = 0 (no maximum).')
+    parser.add_argument('--max-number-tweets', '-t',
+                        dest='max_number_tweets',
+                        type=int,
+                        default=0,
+                        help='Maximum number of tweets to be collected. Default = 0 (no maximum.')
     parser.add_argument('--stop-on-error', '-s',
                         dest='stop_on_error',
                         action='store_true',
@@ -61,6 +71,8 @@ if __name__ == '__main__':
     logging.info(''.join(['Starting Twitter\'s timelines collecting with the following parameters:',
                             '\n\tusers file name = ', args.users_file_name,
                             '\n\tdestination directory = ', args.destination_dir,
+                            '\n\tmaximum number of users = ', str(args.max_number_users),
+                            '\n\tmaximum number of tweets = ', str(args.max_number_tweets),
                             '\n\tstop on error = ', str(args.stop_on_error),
                             '\n\tdebug = ', str(args.debug),
                          ]))
@@ -114,7 +126,7 @@ if __name__ == '__main__':
                     twitter_conn.cleanup()
                     sys.exit(1)
                 retry_sleep_sec = 60
-                logging.warning(''.join(['\t', str(tsee), ' Sleeping for ', str(retry_sleep_sec), ' seconds and retrying ...']))
+                logging.warning(''.join(['\tSleeping for ', str(retry_sleep_sec), ' seconds and retrying ...']))
                 time.sleep(retry_sleep_sec)
                 twitter_conn.reconnect()
                 retry = True
@@ -132,6 +144,10 @@ if __name__ == '__main__':
         acc_users += 1
         acc_tweets += len(tweets)
         logging.debug(''.join(['\t', str(acc_tweets), ' tweets from ', str(acc_users), ' users retrieved so far.']))
+        if args.max_number_users and acc_users >= args.max_number_users:
+            break
+        if args.max_number_tweets and acc_tweets >= args.max_number_tweets:
+            break
 
     logging.info(''.join([str(acc_tweets), ' tweets from ', str(acc_users), ' users retrieved.']))
     twitter_conn.cleanup()
