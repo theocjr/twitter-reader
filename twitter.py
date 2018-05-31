@@ -215,8 +215,7 @@ class TwitterReader:
         self.connect()
 
 
-# STOPPED
-# Besides using the function words to filter the language of the user, the code
+# Besides using the word parameter to filter the language of the user, the code
 #   also uses the parameter 'language' in the Twitter search API. The query
 #   option '-filter:retweets' is also used in the search API to filter out
 #   retweets. It is recommended not to use too small function words (less than 3
@@ -281,7 +280,7 @@ class TwitterReader:
         return json.loads(data, encoding='utf-8')
 
 
-    #   Download all the tweets in the user timeline according to [13]
+    #   Download all the tweets in the user timeline according to [15]
     def get_user_timeline(self, user_id):
         timeline_url = '/1.1/statuses/user_timeline.json'
         timeline_params = {'user_id'            : user_id,
