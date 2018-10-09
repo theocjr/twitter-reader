@@ -44,12 +44,12 @@ def command_line_parsing():
                         dest='max_number_tweets',
                         type=int,
                         default=0,
-                        help='Maximum number of tweets to be collected. Default = 0 (no maximum.')
+                        help='Maximum number of tweets to be collected. Default = 0 (no maximum).')
     parser.add_argument('--stop-on-error', '-s',
                         dest='stop_on_error',
                         action='store_true',
                         default=False,
-                        help='Stop the collecting if an HTTP error occurs.')
+                        help='Stop the collecting if an HTTP error occurs. Default = no stop.')
     parser.add_argument('--debug', '-d',
                         dest='debug',
                         type=int,
