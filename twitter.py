@@ -311,3 +311,43 @@ class TwitterReader:
         temp = self._request_tweets(timeline_params)
         self._logger.debug(''.join(['Retrieved ', str(len(temp)), ' newer tweets since collecting. Remaining \'/statuses/user_timeline\' requests = ', str(self._limits['/statuses/user_timeline']['remaining']), '.']))
         return temp + tweets
+
+
+    # Download tweets that contains a specific expression
+    def search_expression(self, expr, language = 'en', max_results = 1000):
+        if max_results == 0:
+            max_results = float('inf')
+        search_params = {'q':                   '\"' + expr + '\" -filter:retweets',
+                         'lang' :               language,
+                         'result_type' :        'recent',
+                         'count' :              100,
+                         'include_entities' :   'true',
+                        }
+        encoded_search_params = '?%s' % urllib.parse.urlencode(search_params)
+        acc_results = 0
+        total_tweets = []
+        while acc_results < max_results:
+            # get tweets
+            self._check_limit_remaining('/search/tweets')
+            self._connection.request('GET', '/1.1/search/tweets.json' + encoded_search_params, headers=self._request_headers)
+            response = self._connection.getresponse()
+            data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+            self._handle_twitter_response_code(response, data)
+            tweets = json.loads(data, encoding='utf-8')
+            self._update_rate_limit('/search/tweets', response)
+
+            total_tweets += tweets['statuses']
+
+            # account results
+            results = len(tweets['statuses'])
+            acc_results += results
+            self._logger.debug(''.join(['\tRetrieved ', str(results), ' tweets. Current number of tweets found = ',  str(len(total_tweets)), '. Remaining \'/search/tweets\' requests = ', str(self._limits['/search/tweets']['remaining']), '.']))
+
+            # get next results page
+            if 'next_results' not in tweets['search_metadata']:     # end of results
+                break
+            encoded_search_params = tweets['search_metadata']['next_results']
+
+        self._logger.debug(''.join(['Number of tweets found for expr \'', expr, '\' = ',  str(len(total_tweets)), '.']))
+        return total_tweets
+
