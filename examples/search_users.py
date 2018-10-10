@@ -12,7 +12,7 @@
 # Pseudo-code:
 #   read list of words
 #   for each 'word':
-#       get a list of recent users that used this word 
+#       get a list of recent users that used this word
 #       save user information if not already seen
 #
 # References:
