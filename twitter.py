@@ -281,7 +281,7 @@ class TwitterReader:
 
 
     #   Download all the tweets in the user timeline according to [15]
-    def get_user_timeline(self, user_id):
+    def get_user_timeline(self, user_id, since_id=None):
         timeline_url = '/1.1/statuses/user_timeline.json'
         timeline_params = {'user_id'            : user_id,
                            'count'              : 200,
@@ -289,6 +289,10 @@ class TwitterReader:
                            'exclude_replies'    : 'false',
                            'trim_user'          : 'true',
                           }
+
+        if since_id:
+            self._logger.debug('Retrieving tweets since id {} ...'.format(since_id))
+            timeline_params['since_id'] = int(since_id)
 
         # first timeline request
         tweets = self._request_tweets(timeline_params)
