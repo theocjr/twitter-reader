@@ -102,6 +102,7 @@ if __name__ == '__main__':
         retry = True
         while retry:
             logging.debug(''.join(['\tRetrieving user information and timeline from user ', user_screen_name, ' , id = ', user_id, ' ...']))
+            user_info = tweets = None
             try:
                 user_info = twitter_conn.get_user_info(user_id)
                 tweets = twitter_conn.get_user_timeline(user_id)
@@ -119,7 +120,7 @@ if __name__ == '__main__':
                 retry = True
                 continue
             except Exception as e:
-                logging.error(''.join(['\tError retrieving data for user ', user_screen_name, ' , id = ', user_id, '. Error message: ', str(e), ' Aborting user timeline ...']))
+                logging.error(''.join(['\tError retrieving data for user ', user_screen_name, ' , id = ', user_id, '. Error message: ', str(e)]))
                 traceback.print_exc()
                 if args.stop_on_error:
                     logging.error('Exiting on error ...')
@@ -132,6 +133,9 @@ if __name__ == '__main__':
                 retry = True
                 continue
             retry = False
+
+        if (not user_info) or (not tweets):     # error getting user data, abort
+            continue
 
         logging.debug('\tSaving retrieved data ...')
         tweets.reverse()    # put older tweets first
