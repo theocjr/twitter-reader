@@ -105,7 +105,7 @@ if __name__ == '__main__':
             user_info = tweets = None
             try:
                 user_info = twitter_conn.get_user_info(user_id)
-                tweets = twitter_conn.get_user_timeline(user_id)
+                tweets = twitter_conn.get_user_timeline(user_id, extended=True)
             except twitter.TwitterUserNotFoundException as tunfe:
                 logging.warning(''.join(['\t', str(tunfe), ' Aborting user timeline ...']))
             except twitter.TwitterUserSuspendedException as tuse:

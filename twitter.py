@@ -19,7 +19,7 @@
 #   [14] https://developer.twitter.com/en/docs/accounts-and-users/follow-search-get-users/api-reference/get-users-show
 #   [15] https://developer.twitter.com/en/docs/tweets/timelines/guides/working-with-timelines
 #   [16] https://developer.twitter.com/en/docs/tweets/timelines/api-reference/get-statuses-user_timeline
-
+#   [17] https://developer.twitter.com/en/docs/tweets/tweet-updates.html
 
 import logging
 import sys
@@ -281,7 +281,7 @@ class TwitterReader:
 
 
     #   Download all the tweets in the user timeline according to [15]
-    def get_user_timeline(self, user_id, since_id=None):
+    def get_user_timeline(self, user_id, since_id=None, extended=False):
         timeline_url = '/1.1/statuses/user_timeline.json'
         timeline_params = {'user_id'            : user_id,
                            'count'              : 200,
@@ -293,6 +293,10 @@ class TwitterReader:
         if since_id:
             self._logger.debug('Retrieving tweets since id {} ...'.format(since_id))
             timeline_params['since_id'] = int(since_id)
+
+        if extended:    # extended tweets format [17]
+            self._logger.debug('Retrieving extended tweets (more than 140 characters) ...')
+            timeline_params['tweet_mode'] = 'extended'
 
         # first timeline request
         tweets = self._request_tweets(timeline_params)
