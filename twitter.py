@@ -1,25 +1,27 @@
-# Code to download the timeline of a list of Twitter users. It authenticates at
-#   Twitter through application-only authentication [1]. All the tweets and
-#   metadata is saved in JSON format in a directory for each user.
-#
-# References:
-#   [1] https://developer.twitter.com/en/docs/basics/authentication/overview/application-only
-#   [2] https://developer.twitter.com/en/docs/basics/authentication/api-reference/token
-#   [3] https://developer.twitter.com/en/docs/basics/rate-limiting
-#   [4] https://developer.twitter.com/en/docs/basics/rate-limits
-#   [5] https://developer.twitter.com/en/docs/developer-utilities/rate-limit-status/api-reference/get-application-rate_limit_status
-#   [6] https://developer.twitter.com/en/docs/basics/response-codes
-#   [7] https://developer.twitter.com/en/docs/tweets/search/overview
-#   [8] https://developer.twitter.com/en/docs/tweets/search/guides/build-standard-query
-#   [9] https://developer.twitter.com/en/docs/tweets/search/guides/standard-operators
-#   [10] https://developer.twitter.com/en/docs/tweets/search/api-reference/get-search-tweets
-#   [11] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/intro-to-tweet-json
-#   [12] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/tweet-object
-#   [13] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object
-#   [14] https://developer.twitter.com/en/docs/accounts-and-users/follow-search-get-users/api-reference/get-users-show
-#   [15] https://developer.twitter.com/en/docs/tweets/timelines/guides/working-with-timelines
-#   [16] https://developer.twitter.com/en/docs/tweets/timelines/api-reference/get-statuses-user_timeline
-#   [17] https://developer.twitter.com/en/docs/tweets/tweet-updates.html
+""" Code to massively download Twitter data. It authenticates at Twitter through
+    application-only authentication [1].
+
+References:
+    [1] https://developer.twitter.com/en/docs/basics/authentication/overview/application-only
+    [2] https://developer.twitter.com/en/docs/basics/authentication/api-reference/token
+    [3] https://developer.twitter.com/en/docs/basics/rate-limiting
+    [4] https://developer.twitter.com/en/docs/basics/rate-limits
+    [5] https://developer.twitter.com/en/docs/developer-utilities/rate-limit-status/api-reference/get-application-rate_limit_status
+    [6] https://developer.twitter.com/en/docs/basics/response-codes
+    [7] https://developer.twitter.com/en/docs/tweets/search/overview
+    [8] https://developer.twitter.com/en/docs/tweets/search/guides/build-standard-query
+    [9] https://developer.twitter.com/en/docs/tweets/search/guides/standard-operators
+    [10] https://developer.twitter.com/en/docs/tweets/search/api-reference/get-search-tweets
+    [11] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/intro-to-tweet-json
+    [12] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/tweet-object
+    [13] https://developer.twitter.com/en/docs/tweets/data-dictionary/overview/user-object
+    [14] https://developer.twitter.com/en/docs/accounts-and-users/follow-search-get-users/api-reference/get-users-show
+    [15] https://developer.twitter.com/en/docs/tweets/timelines/guides/working-with-timelines
+    [16] https://developer.twitter.com/en/docs/tweets/timelines/api-reference/get-statuses-user_timeline
+    [17] https://developer.twitter.com/en/docs/tweets/tweet-updates.html
+    [18] https://developer.twitter.com/en/docs/tweets/post-and-engage/api-reference/get-statuses-retweeters-ids
+"""
+
 
 import logging
 import sys
@@ -63,19 +65,36 @@ class TwitterReader:
     _consumer_key                   = None
     _consumer_secret                = None
 
-    _limits = {                                                             # dictionary containing resources rate limits information
-                '/search/tweets'             : {                            # resource
-                                                'remaining'     : None,     # how many requests are left for the resource
-                                                'renew_epoch'   : None,     # next epoch to renew the window for the resource
-                                  },
-                '/users/show'                : {                            # resource
-                                                'remaining'     : None,     # how many requests are left for the resource
-                                                'renew_epoch'   : None,     # next epoch to renew the window for the resource
-                                  },
-                '/statuses/user_timeline'    : {                            # resource
-                                                'remaining'     : None,     # how many requests are left for the resource
-                                                'renew_epoch'   : None,     # next epoch to renew the window for the resource
-                                              },
+
+    _limits = {                                                         # Dictionary containing resources rate limits information. The key represents a resource that contains two associated keys: remaining = how many requests are left for the resource; renew_epoch = next epoch to renew the window for the resource.
+               '/users/show'            : {
+                                           'remaining'      : None,
+                                           'renew_epoch'    : None,
+                                          },
+               '/statuses/user_timeline': {
+                                           'remaining'      : None,
+                                           'renew_epoch'    : None,
+                                          },
+                '/search/tweets'        : {
+                                            'remaining'     : None,
+                                            'renew_epoch'   : None,
+                                          },
+               '/statuses/retweeters'   : {
+                                           'remaining'      : None,
+                                           'renew_epoch'    : None,
+                                          },
+               '/friends/list'          : {
+                                           'remaining'      : None,
+                                           'renew_epoch'    : None,
+                                          },
+               '/followers/list'        : {
+                                           'remaining'      : None,
+                                           'renew_epoch'    : None,
+                                          },
+               '/friendships/show'      : {
+                                           'remaining'      : None,
+                                           'renew_epoch'    : None,
+                                          },
               }
 
     _logger                         = None
@@ -87,9 +106,14 @@ class TwitterReader:
         self._consumer_secret = consumer_secret
         self._debug_connection = debug_connection
 
-        self._limits['/search/tweets']['remaining'] = 1          # value of one to allow the first request, after then the value is updated from Twitter headers
-        self._limits['/users/show']['remaining'] = 1             # value of one to allow the first request, after then the value is updated from Twitter headers
-        self._limits['/statuses/user_timeline']['remaining'] = 1 # value of one to allow the first request, after then the value is updated from Twitter headers
+        # limits set to 1 to allow the first request, after then the values are updated from Twitter headers
+        self._limits['/users/show']['remaining'] = 1
+        self._limits['/statuses/user_timeline']['remaining'] = 1
+        self._limits['/search/tweets']['remaining'] = 1
+        self._limits['/statuses/retweeters']['remaining'] = 1
+        self._limits['/friends/list']['remaining'] = 1
+        self._limits['/followers/list']['remaining'] = 1
+        self._limits['/friendships/show']['remaining'] = 1
 
         self._logger = logging.getLogger(self.__class__.__name__)
 
@@ -168,7 +192,7 @@ class TwitterReader:
             if self._limits[resource]['remaining'] == 0:
                 sleep_sec = (self._limits[resource]['renew_epoch'] + 1) - time.time() # (renew_epoch + 1) => avoiding synchonization problems
                 sleep_sec = 0 if sleep_sec < 0 else sleep_sec
-                self._logger.debug(''.join(['Requests limit reached. Sleeping for ', str(sleep_sec), ' seconds ...']))
+                self._logger.warning(''.join(['Requests limit reached. Sleeping for ', str(sleep_sec), ' seconds ...']))
                 time.sleep(sleep_sec)
                 self.reconnect()    # better to force a restart since the server maybe had dropped the current connection
 
@@ -215,19 +239,22 @@ class TwitterReader:
         self.connect()
 
 
-# Besides using the word parameter to filter the language of the user, the code
-#   also uses the parameter 'language' in the Twitter search API. The query
-#   option '-filter:retweets' is also used in the search API to filter out
-#   retweets. It is recommended not to use too small function words (less than 3
-#   characters) since they can match undesired languages.
-#
-# Pseudo-code:
-#   read list of words
-#   for each 'word':
-#       search most recents tweets using 'word' and recover at most max_results_per_word parameter
-#       for each 'tweet':
-#           save user information if not already seen
     def search_users(self, word, language = 'en', max_results = 1000):
+        """ Return a list of user based on a list of words.
+
+        Besides using the word parameter to filter the language of the user, the
+        code also uses the parameter 'language' in the Twitter search API. The
+        query option '-filter:retweets' is also used in the search API to filter
+        out retweets. It is recommended not to use too small function words
+        (less than 3 characters) since they can match undesired languages.
+
+        Peudo-code:
+            read list of words
+            for each 'word':
+                search most recents tweets using 'word' and recover at most max_results_per_word parameter
+            for each 'tweet':
+                save user information if not already seen
+        """
         search_params = {'q':                   word + ' -filter:retweets',
                          'lang' :               language,
                          'result_type' :        'recent',
@@ -280,8 +307,9 @@ class TwitterReader:
         return json.loads(data, encoding='utf-8')
 
 
-    #   Download all the tweets in the user timeline according to [15]
     def get_user_timeline(self, user_id, since_id=None, extended=False):
+        """ Downloads all the tweets in the user timeline according to [15].
+        """
         timeline_url = '/1.1/statuses/user_timeline.json'
         timeline_params = {'user_id'            : user_id,
                            'count'              : 200,
@@ -321,8 +349,9 @@ class TwitterReader:
         return temp + tweets
 
 
-    # Download tweets that contains a specific expression
     def search_expression(self, expr, language = 'en', max_results = 1000):
+        """ Downloads tweets that contains a specific expression.
+        """
         if max_results == 0:
             max_results = float('inf')
         search_params = {'q':                   '\"' + expr + '\" -filter:retweets',
@@ -359,3 +388,115 @@ class TwitterReader:
         self._logger.debug(''.join(['Number of tweets found for expr \'', expr, '\' = ',  str(len(total_tweets)), '.']))
         return total_tweets
 
+
+    def get_retweeters(self, tweet_id):
+        retweet_url = '/1.1/statuses/retweeters/ids.json'
+        retweet_params = {'id'      : tweet_id,
+                           'count'  : 100,
+                           'cursor' : -1,
+                          }
+        self._check_limit_remaining('/statuses/retweeters')
+        encoded_params = '?%s' % urllib.parse.urlencode(retweet_params)
+        self._connection.request('GET', retweet_url + encoded_params, headers=self._request_headers)
+        response = self._connection.getresponse()
+        data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+        self._handle_twitter_response_code(response, data)
+        self._update_rate_limit('/statuses/retweeters', response)
+        self._logger.debug(''.join(['Remaining \'/statuses/retweeters\' requests = ', str(self._limits['/statuses/retweeters']['remaining']), '.']))
+        data = json.loads(data, encoding='utf-8')
+        retweeters = data['ids'][:]
+        while data['next_cursor'] != 0:
+            retweet_params['cursor'] = data['next_cursor']
+            self._check_limit_remaining('/statuses/retweeters')
+            encoded_params = '?%s' % urllib.parse.urlencode(retweet_params)
+            self._connection.request('GET', retweet_url + encoded_params, headers=self._request_headers)
+            response = self._connection.getresponse()
+            data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+            self._handle_twitter_response_code(response, data)
+            self._update_rate_limit('/statuses/retweeters', response)
+            self._logger.debug(''.join(['Remaining \'/statuses/retweeters\' requests = ', str(self._limits['/statuses/retweeters']['remaining']), '.']))
+            data = json.loads(data, encoding='utf-8')
+            retweeters += data['ids'][:]
+        return retweeters
+
+
+    def get_friends(self, screen_name):
+        friends_url = '/1.1/friends/list.json'
+        friends_params = {'screen_name'             : screen_name,
+                          'count'                   : 200,
+                          'cursor'                  : -1,
+                          'skip_status'             : True,
+                          'include_user_entities'   : False,
+                          }
+        self._check_limit_remaining('/friends/list')
+        encoded_params = '?%s' % urllib.parse.urlencode(friends_params)
+        self._connection.request('GET', friends_url + encoded_params, headers=self._request_headers)
+        response = self._connection.getresponse()
+        data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+        self._handle_twitter_response_code(response, data)
+        self._update_rate_limit('/friends/list', response)
+        self._logger.debug(''.join(['Remaining \'/friends/list\' requests = ', str(self._limits['/friends/list']['remaining']), '.']))
+        data = json.loads(data, encoding='utf-8')
+        friends = data['users'][:]
+        while data['next_cursor'] != 0:
+            friends_params['cursor'] = data['next_cursor']
+            self._check_limit_remaining('/friends/list')
+            encoded_params = '?%s' % urllib.parse.urlencode(friends_params)
+            self._connection.request('GET', friends_url + encoded_params, headers=self._request_headers)
+            response = self._connection.getresponse()
+            data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+            self._handle_twitter_response_code(response, data)
+            self._update_rate_limit('/friends/list', response)
+            self._logger.debug(''.join(['Remaining \'/friends/list\' requests = ', str(self._limits['/friends/list']['remaining']), '.']))
+            data = json.loads(data, encoding='utf-8')
+            friends += data['users'][:]
+        return friends
+
+
+    def get_followers(self, screen_name):
+        followers_url = '/1.1/followers/list.json'
+        followers_params = {'screen_name'           : screen_name,
+                            'count'                 : 200,
+                            'cursor'                : -1,
+                            'skip_status'           : True,
+                            'include_user_entities' : False,
+                          }
+        self._check_limit_remaining('/followers/list')
+        encoded_params = '?%s' % urllib.parse.urlencode(followers_params)
+        self._connection.request('GET', followers_url + encoded_params, headers=self._request_headers)
+        response = self._connection.getresponse()
+        data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+        self._handle_twitter_response_code(response, data)
+        self._update_rate_limit('/followers/list', response)
+        self._logger.debug(''.join(['Remaining \'/followers/list\' requests = ', str(self._limits['/followers/list']['remaining']), '.']))
+        data = json.loads(data, encoding='utf-8')
+        followers = data['users'][:]
+        while data['next_cursor'] != 0:
+            followers_params['cursor'] = data['next_cursor']
+            self._check_limit_remaining('/followers/list')
+            encoded_params = '?%s' % urllib.parse.urlencode(followers_params)
+            self._connection.request('GET', followers_url + encoded_params, headers=self._request_headers)
+            response = self._connection.getresponse()
+            data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+            self._handle_twitter_response_code(response, data)
+            self._update_rate_limit('/followers/list', response)
+            self._logger.debug(''.join(['Remaining \'/followers/list\' requests = ', str(self._limits['/followers/list']['remaining']), '.']))
+            data = json.loads(data, encoding='utf-8')
+            followers += data['users'][:]
+        return followers
+
+
+    def get_friendship(self, source_screen_name, target_screen_name):
+        friendship_url = '/1.1/friendships/show.json'
+        friendship_params = {'source_screen_name'   : source_screen_name,
+                             'target_screen_name'   : target_screen_name,
+                            }
+        self._check_limit_remaining('/friendships/show')
+        encoded_params = '?%s' % urllib.parse.urlencode(friendship_params)
+        self._connection.request('GET', friendship_url + encoded_params, headers=self._request_headers)
+        response = self._connection.getresponse()
+        data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+        self._handle_twitter_response_code(response, data)
+        self._update_rate_limit('/friendships/show', response)
+        self._logger.debug(''.join(['Remaining \'/friendship/show\' requests = ', str(self._limits['/friendships/show']['remaining']), '.']))
+        return json.loads(data, encoding='utf-8')
