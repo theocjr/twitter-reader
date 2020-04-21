@@ -20,6 +20,7 @@ References:
     [16] https://developer.twitter.com/en/docs/tweets/timelines/api-reference/get-statuses-user_timeline
     [17] https://developer.twitter.com/en/docs/tweets/tweet-updates.html
     [18] https://developer.twitter.com/en/docs/tweets/post-and-engage/api-reference/get-statuses-retweeters-ids
+    [19] https://developer.twitter.com/en/docs/tweets/post-and-engage/api-reference/get-statuses-lookup 
 """
 
 
@@ -75,11 +76,15 @@ class TwitterReader:
                                            'remaining'      : None,
                                            'renew_epoch'    : None,
                                           },
-                '/search/tweets'        : {
+               '/search/tweets'         : {
                                             'remaining'     : None,
                                             'renew_epoch'   : None,
                                           },
                '/statuses/retweeters'   : {
+                                           'remaining'      : None,
+                                           'renew_epoch'    : None,
+                                          },
+               '/statuses/lookup'       : {
                                            'remaining'      : None,
                                            'renew_epoch'    : None,
                                           },
@@ -111,6 +116,7 @@ class TwitterReader:
         self._limits['/statuses/user_timeline']['remaining'] = 1
         self._limits['/search/tweets']['remaining'] = 1
         self._limits['/statuses/retweeters']['remaining'] = 1
+        self._limits['/statuses/lookup']['remaining'] = 1
         self._limits['/friends/list']['remaining'] = 1
         self._limits['/followers/list']['remaining'] = 1
         self._limits['/friendships/show']['remaining'] = 1
@@ -386,6 +392,43 @@ class TwitterReader:
             encoded_search_params = tweets['search_metadata']['next_results']
 
         self._logger.debug(''.join(['Number of tweets found for expr \'', expr, '\' = ',  str(len(total_tweets)), '.']))
+        return total_tweets
+
+
+    def hydrate_tweets(self, tweet_ids, extended=False):
+        """ Retrieves tweets (hydrate) from their tweet ids [19].
+        """
+
+        lookup_url = '/1.1/statuses/lookup.json'
+        lookup_url_key = '/statuses/lookup'
+        params = {'id'                  : None,
+                  'include_entities'    : 'false',
+                  'trim_user'           : 'true',
+                  'map'                 : 'false',
+                  'include_ext_alt_text': 'false',
+                  'include_card_uri'    : 'false',
+                 }
+        if extended:    # extended tweets format [17]
+            self._logger.debug('Retrieving extended tweets (more than 140 characters) ...')
+            params['tweet_mode'] = 'extended'
+        max_number_ids_allowed = 100
+
+        total_tweets = []
+        for idx in range(0, len(tweet_ids), max_number_ids_allowed):
+            params['id'] = ','.join(tweet_ids[idx: idx+max_number_ids_allowed])
+            params_encoded = urllib.parse.urlencode(params)
+            self._check_limit_remaining(lookup_url_key)
+            self._connection.request('POST', lookup_url, headers=self._request_headers, body=params_encoded)
+            response = self._connection.getresponse()
+            data = response.read().decode('utf-8')  # See note on https://docs.python.org/2/library/httplib.html#httplib.HTTPConnection.getresponse
+            self._handle_twitter_response_code(response, data)
+            tweets = json.loads(data, encoding='utf-8')
+            self._update_rate_limit(lookup_url_key, response)
+            total_tweets += tweets
+
+            self._logger.debug('\tRetrieved {} tweets. Current number of tweets retrieved = {}. Remaining \'{}\' requests = {}.'.format(len(tweets), len(total_tweets), lookup_url, self._limits[lookup_url_key]['remaining']))
+
+        self._logger.debug('Total number of tweets retrieved {}/{}.'.format(len(total_tweets), len(tweet_ids)))
         return total_tweets
 
 
